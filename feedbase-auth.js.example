@@ -1,0 +1,160 @@
+// lib/feedbase-auth.js
+/**
+ * Feedbase Authorization Configuration
+ * Manages authorized admins and banned users
+ */
+
+// Authorized user IDs who can create/delete announcements and moderate content
+export const AUTHORIZED_ADMINS = [
+  'user-admin-123',
+  'user-owner-456', 
+  'user-moderator-789',
+  // Add more admin user IDs here
+];
+
+// Banned user IDs who cannot interact with the widget
+export const BANNED_USERS = [
+  'user-banned-001',
+  'user-spam-002',
+  // Add banned user IDs here
+];
+
+// Role-based permissions
+export const PERMISSIONS = {
+  // Super admin - can do everything
+  SUPER_ADMIN: [
+    'create_announcement',
+    'delete_announcement', 
+    'edit_announcement',
+    'moderate_feedback',
+    'delete_feedback',
+    'ban_user',
+    'manage_categories',
+    'view_analytics',
+    'manage_webhooks'
+  ],
+  
+  // Admin - can manage content but not users
+  ADMIN: [
+    'create_announcement',
+    'delete_announcement',
+    'edit_announcement', 
+    'moderate_feedback',
+    'delete_feedback',
+    'manage_categories',
+    'view_analytics'
+  ],
+  
+  // Moderator - can moderate but not create announcements
+  MODERATOR: [
+    'moderate_feedback',
+    'delete_feedback',
+    'edit_announcement'
+  ]
+};
+
+// User role assignments
+export const USER_ROLES = {
+  'user-admin-123': 'SUPER_ADMIN',
+  'user-owner-456': 'SUPER_ADMIN', 
+  'user-moderator-789': 'MODERATOR',
+  // Add more role assignments here
+};
+
+// Helper functions
+export const isAuthorizedAdmin = (userId) => {
+  return AUTHORIZED_ADMINS.includes(userId);
+};
+
+export const isBannedUser = (userId) => {
+  return BANNED_USERS.includes(userId);
+};
+
+export const getUserRole = (userId) => {
+  return USER_ROLES[userId] || 'USER';
+};
+
+export const hasPermission = (userId, permission) => {
+  if (isBannedUser(userId)) return false;
+  
+  const role = getUserRole(userId);
+  const permissions = PERMISSIONS[role] || [];
+  return permissions.includes(permission);
+};
+
+export const canCreateAnnouncement = (userId) => {
+  return hasPermission(userId, 'create_announcement');
+};
+
+export const canDeleteAnnouncement = (userId) => {
+  return hasPermission(userId, 'delete_announcement');
+};
+
+export const canModerateFeedback = (userId) => {
+  return hasPermission(userId, 'moderate_feedback');
+};
+
+// Dynamic authorization functions (for runtime updates)
+export class AuthManager {
+  constructor() {
+    this.admins = new Set(AUTHORIZED_ADMINS);
+    this.banned = new Set(BANNED_USERS);
+    this.roles = new Map(Object.entries(USER_ROLES));
+  }
+
+  addAdmin(userId, role = 'ADMIN') {
+    this.admins.add(userId);
+    this.roles.set(userId, role);
+  }
+
+  removeAdmin(userId) {
+    this.admins.delete(userId);
+    this.roles.delete(userId);
+  }
+
+  banUser(userId) {
+    this.banned.add(userId);
+    this.admins.delete(userId); // Remove admin privileges if banned
+    this.roles.delete(userId);
+  }
+
+  unbanUser(userId) {
+    this.banned.delete(userId);
+  }
+
+  isAdmin(userId) {
+    return this.admins.has(userId);
+  }
+
+  isBanned(userId) {
+    return this.banned.has(userId);
+  }
+
+  getRole(userId) {
+    return this.roles.get(userId) || 'USER';
+  }
+
+  hasPermission(userId, permission) {
+    if (this.isBanned(userId)) return false;
+    
+    const role = this.getRole(userId);
+    const permissions = PERMISSIONS[role] || [];
+    return permissions.includes(permission);
+  }
+
+  // Export current state for persistence
+  exportConfig() {
+    return {
+      admins: Array.from(this.admins),
+      banned: Array.from(this.banned),
+      roles: Object.fromEntries(this.roles)
+    };
+  }
+
+  // Import configuration
+  importConfig(config) {
+    this.admins = new Set(config.admins || []);
+    this.banned = new Set(config.banned || []);
+    this.roles = new Map(Object.entries(config.roles || {}));
+  }
+}
